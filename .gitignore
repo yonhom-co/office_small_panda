@@ -1,0 +1,41 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# 环境与密钥（真实 key 仅入 .env，绝不入库）
+.env
+.env.*
+!.env.example
+
+# 桌面端/前端构建
+node_modules/
+dist/
+build/
+.next/
+frontend/.next/
+frontend/node_modules/
+
+# 数据与本地产物
+data/
+*.local
+.DS_Store
+
+# 日志
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Claude Code 会话目录
+.claude/
+
+# Docker 本地数据卷
+deploy/data/
+
