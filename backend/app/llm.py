@@ -39,7 +39,7 @@ def chat(messages, *, model=MODEL, tools=None, max_tokens=MAX_TOKENS, **kw):
     resp.stop_reason == "end_turn" → 任务完成。
     """
     return client.messages.create(
-        model=model,
+        model=model or MODEL,
         max_tokens=max_tokens,
         tools=tools,
         messages=messages,

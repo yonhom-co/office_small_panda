@@ -19,8 +19,9 @@ build/
 frontend/.next/
 frontend/node_modules/
 
-# 数据与本地产物
-data/
+# 数据与本地产物（运行时数据不入库；示例 fixture 例外）
+data/*
+!data/sample_sales.csv
 *.local
 .DS_Store
 

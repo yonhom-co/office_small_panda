@@ -46,9 +46,18 @@ docker compose up -d
 
 ## 当前进度
 - [x] 阶段 0：工程骨架 + 设计基线
-- [ ] 阶段 1：Agent Harness 内核 + 数据分析工具链
+- [x] 阶段 1：Agent Harness 内核 + 数据分析工具链
 - [ ] 阶段 2：Plan Mode + 子代理 + 上下文工程
 - [ ] 阶段 3：Skills + 知识库 + 文案创作
 - [ ] 阶段 4：多端前端
 - [ ] 阶段 5：MCP + Hooks + 私有化 + 一体机
 - [ ] 阶段 6：优化与行业场景
+
+## 阶段 1 产物
+- `app/harness.py`：PocketFlow AgentNode 单节点自环 tool-use 循环（核心内核）
+- `app/tools/`：工具注册表 + read_data_meta / run_code / make_chart / todo / export_report
+- `app/sandbox.py`：子进程隔离代码沙箱（预加载 pandas/sklearn/matplotlib/plotly，savefig 劫持收集图表）
+- `app/dataset.py`：CSV/Excel 接入 + 元数据 + parquet 落盘
+- `backend/run_acceptance.py`：端到端验收脚本
+
+验收：`uv run python backend/run_acceptance.py`（上传 sample_sales.csv → Agent 自主循环 → 含图表 HTML 报告）
