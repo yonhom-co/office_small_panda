@@ -47,7 +47,7 @@ docker compose up -d
 ## 当前进度
 - [x] 阶段 0：工程骨架 + 设计基线
 - [x] 阶段 1：Agent Harness 内核 + 数据分析工具链
-- [ ] 阶段 2：Plan Mode + 子代理 + 上下文工程
+- [x] 阶段 2：Plan Mode + 子代理 + 上下文工程
 - [ ] 阶段 3：Skills + 知识库 + 文案创作
 - [ ] 阶段 4：多端前端
 - [ ] 阶段 5：MCP + Hooks + 私有化 + 一体机
@@ -60,4 +60,14 @@ docker compose up -d
 - `app/dataset.py`：CSV/Excel 接入 + 元数据 + parquet 落盘
 - `backend/run_acceptance.py`：端到端验收脚本
 
-验收：`uv run python backend/run_acceptance.py`（上传 sample_sales.csv → Agent 自主循环 → 含图表 HTML 报告）
+验收：`.venv/bin/python backend/run_acceptance.py`（上传 sample_sales.csv → Agent 自主循环 → 含图表 HTML 报告）
+
+## 阶段 2 产物
+- `app/plan.py` + `app/plan_mode.py`：Plan Mode 人机共决策（出计划→审批→执行）
+- `app/subagent.py` + `app/tools/subagent_tools.py`：子代理委派（隔离上下文，只回传结论）
+- `app/context.py`：上下文工程（分层系统提示 + 长对话压缩 + 项目记忆）
+- `app/checkpoint.py`：shared 快照 + 过程追溯（自建 checkpointing）
+- `app/tools/ppt_tools.py`：gen_ppt（python-pptx 生成 PPT）
+- `backend/run_acceptance_stage2.py`：阶段2验收脚本
+
+验收：`.venv/bin/python backend/run_acceptance_stage2.py`（Plan→子代理协作→PPT）

@@ -16,6 +16,8 @@ from pocketflow import Node
 
 from .llm import chat
 from .tools import ToolRegistry, default_registry
+from .checkpoint import CheckpointStore
+from .context import maybe_compress, build_system
 
 # shared 约定键
 K_MESSAGES = "messages"          # LLM 对话历史（Anthropic messages 格式）
@@ -59,11 +61,13 @@ class AgentNode(Node):
         shared.setdefault(K_MAX_STEPS, 12)
         shared.setdefault(K_TOOLS, default_registry)
         shared.setdefault(K_SYSTEM, SYSTEM_PROMPT)
+        shared.setdefault("checkpoint", None)
         return {
             "messages": shared[K_MESSAGES],
             "tools": shared[K_TOOLS],
             "system": shared[K_SYSTEM],
             "model": shared.get(K_MODEL),
+            "checkpoint": shared["checkpoint"],
         }
 
     def exec(self, prep_res: dict) -> Any:
@@ -81,6 +85,12 @@ class AgentNode(Node):
         resp = exec_res
         shared[K_STEP] += 1
         registry: ToolRegistry = prep_res["tools"]
+        ckpt: CheckpointStore | None = prep_res["checkpoint"]
+
+        # 上下文压缩：超阈值时压缩早期历史，防膨胀
+        shared[K_MESSAGES], compressed = maybe_compress(shared[K_MESSAGES])
+        if compressed:
+            _log(shared, "context_compressed", {})
 
         # 把 assistant 的本轮内容块原样追加到历史
         shared[K_MESSAGES].append({"role": "assistant", "content": resp.content})
@@ -117,12 +127,21 @@ class AgentNode(Node):
                     }
                 )
             shared[K_MESSAGES].append({"role": "user", "content": tool_results})
+            _snapshot(ckpt, shared, action="tool_use",
+                      note=",".join(tu.name for tu in tool_uses))
             return "continue"
 
         # end_turn / 其他 → 完成
         shared[K_RESULT] = "\n".join(text_parts) or "[完成]"
         _log(shared, "end_turn", {})
+        _snapshot(ckpt, shared, action="done", note=(shared[K_RESULT] or "")[:200])
         return "done"
+
+
+def _snapshot(ckpt: CheckpointStore | None, shared: dict, *, action: str, note: str = "") -> None:
+    """若配置了 checkpoint，记录当前步快照。"""
+    if ckpt is not None:
+        ckpt.snapshot(shared, step=shared.get(K_STEP, 0), action=action, note=note)
 
 
 def _log(shared: dict, name: str, payload: dict) -> None:
