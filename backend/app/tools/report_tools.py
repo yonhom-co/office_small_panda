@@ -64,25 +64,40 @@ def _export_report(params: dict, shared: dict) -> str:
 
     out_dir = WORKDIR / "reports"
     out_dir.mkdir(parents=True, exist_ok=True)
-    name = f"report_{uuid.uuid4().hex[:8]}.html"
-    out_path = out_dir / name
-    out_path.write_text(doc, encoding="utf-8")
-    shared["report_path"] = str(out_path)
-    return f"报告已生成：{out_path}\n（含 {len(charts)} 张图表，{len(sections)} 个章节，自包含 HTML）"
+    stem = f"report_{uuid.uuid4().hex[:8]}"
+    fmt = params.get("format", "html")
+    html_path = out_dir / f"{stem}.html"
+    html_path.write_text(doc, encoding="utf-8")
+    shared["report_path"] = str(html_path)
+
+    produced = [str(html_path)]
+    if fmt == "pdf":
+        try:
+            from weasyprint import HTML as WPHTML
+            pdf_path = out_dir / f"{stem}.pdf"
+            WPHTML(string=doc).write_pdf(str(pdf_path))
+            shared["report_pdf_path"] = str(pdf_path)
+            produced.append(str(pdf_path))
+        except Exception as e:
+            return f"HTML 报告已生成：{html_path}\n[PDF 导出失败] {type(e).__name__}: {e}"
+
+    paths_text = "、".join(produced)
+    return f"报告已生成（{fmt.upper()}）：{paths_text}\n（含 {len(charts)} 张图表，{len(sections)} 个章节）"
 
 
 export_report_tool = Tool(
     name="export_report",
     description=(
-        "生成 HTML 数据分析报告。分析完成后调用。"
+        "生成数据分析报告。分析完成后调用。"
         "传 title（标题）、summary（发现摘要）、sections（章节列表，每项含 heading 与 content）。"
-        "已生成的图表会自动嵌入。"
+        "format 可选 html（默认）或 pdf。已生成的图表会自动嵌入。"
     ),
     input_schema={
         "type": "object",
         "properties": {
             "title": {"type": "string"},
             "summary": {"type": "string", "description": "核心发现摘要"},
+            "format": {"type": "string", "enum": ["html", "pdf"], "description": "输出格式，默认 html"},
             "sections": {
                 "type": "array",
                 "items": {

@@ -62,24 +62,29 @@ class AgentNode(Node):
         shared.setdefault(K_TOOLS, default_registry)
         shared.setdefault(K_SYSTEM, SYSTEM_PROMPT)
         shared.setdefault("checkpoint", None)
+        shared.setdefault("stream", False)        # 是否流式
+        shared.setdefault("on_text", None)        # 文本增量回调
+        shared.setdefault("on_event", None)       # 事件回调（工具调用/完成）
         return {
             "messages": shared[K_MESSAGES],
             "tools": shared[K_TOOLS],
             "system": shared[K_SYSTEM],
             "model": shared.get(K_MODEL),
             "checkpoint": shared["checkpoint"],
+            "stream": shared["stream"],
+            "on_text": shared["on_text"],
+            "on_event": shared["on_event"],
         }
 
     def exec(self, prep_res: dict) -> Any:
         registry: ToolRegistry = prep_res["tools"]
         model = prep_res["model"] or None
-        resp = chat(
-            model=model,
-            system=prep_res["system"],
-            messages=prep_res["messages"],
-            tools=registry.schemas() or None,
-        )
-        return resp
+        kwargs = dict(model=model, system=prep_res["system"],
+                      messages=prep_res["messages"], tools=registry.schemas() or None)
+        if prep_res["stream"]:
+            from .llm import chat_stream
+            return chat_stream(on_text=prep_res["on_text"], on_event=prep_res["on_event"], **kwargs)
+        return chat(**kwargs)
 
     def post(self, shared: dict, prep_res: dict, exec_res: Any) -> str:
         resp = exec_res
@@ -114,11 +119,17 @@ class AgentNode(Node):
 
         if resp.stop_reason == "tool_use" and tool_uses:
             # 执行所有 tool_use 块，回灌 tool_result
+            on_event = prep_res["on_event"]
             tool_results = []
             for tu in tool_uses:
                 params = dict(tu.input) if tu.input else {}
+                if on_event:
+                    on_event({"type": "tool_call", "name": tu.name, "input": params})
                 out = registry.call(tu.name, params, shared)
                 _log(shared, tu.name, {"input": params, "output": out})
+                if on_event:
+                    on_event({"type": "tool_result", "name": tu.name,
+                              "output": out[:500]})
                 tool_results.append(
                     {
                         "type": "tool_result",

@@ -45,3 +45,30 @@ def chat(messages, *, model=MODEL, tools=None, max_tokens=MAX_TOKENS, **kw):
         messages=messages,
         **kw,
     )
+
+
+def chat_stream(messages, *, model=MODEL, tools=None, max_tokens=MAX_TOKENS,
+                on_text=None, on_event=None, **kw):
+    """流式调用 messages.create，返回聚合后的完整响应。
+
+    on_text(chunk: str)：文本增量回调（每个 text delta 调用一次）。
+    on_event(event: dict)：事件回调，如 {"type":"tool_use","name":...,"input":...}、
+                          {"type":"step","stop_reason":...} 等，供 SSE/前端推送。
+    流式与 tool use 兼容：Anthropic 流式响应会在末尾聚合为完整 Message，
+    含 stop_reason 与 tool_use 块，调用方处理方式与非流式一致。
+    """
+    on_text = on_text or (lambda c: None)
+    on_event = on_event or (lambda e: None)
+    with client.messages.stream(
+        model=model or MODEL,
+        max_tokens=max_tokens,
+        tools=tools,
+        messages=messages,
+        **kw,
+    ) as stream:
+        for chunk_text in stream.text_stream:
+            if chunk_text:
+                on_text(chunk_text)
+        resp = stream.get_final_message()
+    on_event({"type": "message_done", "stop_reason": resp.stop_reason})
+    return resp
