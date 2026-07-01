@@ -12,7 +12,9 @@ def _run_code(params: dict, shared: dict) -> str:
     cur = shared.get("current_dataset")
     parquet = datasets.get(cur, {}).get("path") if cur else None
 
-    res = run_code(code, parquet)
+    # 优先 Docker 强隔离，daemon 不可用则降级子进程
+    from ..sandbox_docker import run_code_isolated
+    res = run_code_isolated(code, parquet)
     shared.setdefault("charts", []).extend(res["charts"])
 
     parts = []

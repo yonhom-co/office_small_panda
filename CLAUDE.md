@@ -50,7 +50,7 @@ docker compose up -d
 - [x] 阶段 2：Plan Mode + 子代理 + 上下文工程
 - [x] 阶段 3：Skills + 知识库 + 文案创作
 - [x] 阶段 4：多端前端（网页版✓ / 桌面端配置就绪阻塞 / 小程序推迟）
-- [ ] 阶段 5：MCP + Hooks + 私有化 + 一体机
+- [x] 阶段 5：MCP + Hooks + 私有化 + 一体机
 - [ ] 阶段 6：优化与行业场景
 
 ## 阶段 1 产物
@@ -93,3 +93,13 @@ docker compose up -d
 
 启动：`uvicorn app.main:app --port 8000 --app-dir backend` + `cd frontend && pnpm dev`
 验收：经 API 联调实测，上传数据→SSE 流式对话→14步工具链→生成 HTML 报告，全链路跑通
+
+## 阶段 5 产物
+- `app/providers.py`：LLMProvider 抽象层（ark 默认 / vllm 私有化）
+- `app/hooks.py`：Hooks 引擎（事件总线 + 归档/脱敏/审计规则）
+- `app/sandbox_docker.py` + `deploy/sandbox/Dockerfile`：Docker 强隔离沙箱（daemon 不可用降级子进程）
+- `app/mcp_client.py` + `mcp_servers/filestore_server.py` + `app/tools/mcp_tools.py`：MCP 连接器
+- `app/auth.py`：多租户与权限（Tenant/User/Role + 工具白名单）
+- `deploy/docker-compose.prod.yml` + `deploy/{backend,frontend}.Dockerfile` + `PRIVATE_DEPLOY.md`：私有化部署 + 一体机规格
+
+验收：MCP 拉外部数据 + Hooks 审计归档 + 多租户 + 沙箱 + 报告生成协同（15步工具链）

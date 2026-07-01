@@ -1,0 +1,56 @@
+# 生产/私有化部署 Compose
+# 用法：docker compose -f deploy/docker-compose.prod.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: raccoon, POSTGRES_PASSWORD: raccoon, POSTGRES_DB: raccoon }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes: [redisdata:/data]
+    restart: unless-stopped
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes: [qdrantdata:/qdrant/storage]
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment: { MINIO_ROOT_USER: minioadmin, MINIO_ROOT_PASSWORD: minioadmin }
+    volumes: [miniodata:/data]
+    restart: unless-stopped
+
+  embedding:
+    # 本地 bge-m3 embedding（私有化用；CPU 版）
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    command: ["--model-id", "BAAI/bge-m3", "--port", "8080"]
+    volumes: [embeddata:/data]
+    restart: unless-stopped
+
+  backend:
+    build: { context: .., dockerfile: deploy/backend.Dockerfile }
+    env_file: ../.env
+    environment:
+      RACCOON_KB_DIR: /data/kb
+      RACCOON_WORKDIR: /data/work
+    volumes:
+      - appdata:/data
+      - /var/run/docker.sock:/var/run/docker.sock  # sandbox 用 sibling 容器
+    depends_on: [postgres, redis, qdrant, minio, embedding]
+    ports: ["8000:8000"]
+    restart: unless-stopped
+
+  frontend:
+    build: { context: ../frontend, dockerfile: ../deploy/frontend.Dockerfile }
+    ports: ["80:80"]
+    depends_on: [backend]
+    restart: unless-stopped
+
+  # 沙箱镜像（run_code 强隔离用，需预先 docker build -t raccoon-sandbox deploy/sandbox/）
+  # sandbox 不常驻，由 backend 按需 docker run
+
+volumes: { pgdata: {}, redisdata: {}, qdrantdata: {}, miniodata: {}, embeddata: {}, appdata: {} }

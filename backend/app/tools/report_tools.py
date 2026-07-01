@@ -81,6 +81,13 @@ def _export_report(params: dict, shared: dict) -> str:
         except Exception as e:
             return f"HTML 报告已生成：{html_path}\n[PDF 导出失败] {type(e).__name__}: {e}"
 
+    # Hooks：报告生成后 emit 事件（归档等）
+    bus = shared.get("hooks")
+    if bus:
+        from ..hooks import Event
+        for p in produced:
+            bus.emit(Event("report_generated", {"path": p, "format": fmt}))
+
     paths_text = "、".join(produced)
     return f"报告已生成（{fmt.upper()}）：{paths_text}\n（含 {len(charts)} 张图表，{len(sections)} 个章节）"
 

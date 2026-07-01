@@ -1,6 +1,7 @@
-"""LLM 客户端封装。
+"""LLM 客户端封装 —— 委托给 LLMProvider 抽象层（阶段5 步骤4）。
 
 主用火山方舟编程套餐（coding plan）的 Anthropic 兼容端点，原生 tool use。
+私有化可设 LLM_PROVIDER=vllm 切本地 vLLM（OpenAI 兼容，经转译）。
 端点：base_url + /v1/messages
 鉴权：Authorization: Bearer <key>（anthropic SDK 用 auth_token 即可）。
 
@@ -11,15 +12,10 @@
 """
 import os
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+from .providers import get_provider
 
 load_dotenv()
-
-client = Anthropic(
-    base_url=os.getenv("ARK_BASE_URL", "https://ark.cn-beijing.volces.com/api/coding"),
-    auth_token=os.getenv("ARK_API_KEY"),
-)
 
 MODEL = os.getenv("ARK_MODEL", "glm-5.2")
 MAX_TOKENS = int(os.getenv("ARK_MAX_TOKENS", "8192"))
@@ -31,44 +27,28 @@ MODEL_CODE = os.getenv("ARK_MODEL_CODE", MODEL)          # 沙箱代码生成
 MODEL_LITE = os.getenv("ARK_MODEL_LITE", MODEL)          # 轻任务/路由/Todo
 
 
-def chat(messages, *, model=MODEL, tools=None, max_tokens=MAX_TOKENS, **kw):
-    """同步调用 messages.create，返回原始响应。
+def chat(messages, *, model=MODEL, tools=None, max_tokens=MAX_TOKENS, system=None, **kw):
+    """同步调用 messages.create，返回 Anthropic 兼容 Message。
 
     tool-use 循环由调用方（PocketFlow AgentNode）驱动：
     resp.stop_reason == "tool_use" → 取 tool_use 块执行 → 回灌 tool_result → 继续。
     resp.stop_reason == "end_turn" → 任务完成。
     """
-    return client.messages.create(
-        model=model or MODEL,
-        max_tokens=max_tokens,
-        tools=tools,
-        messages=messages,
-        **kw,
+    return get_provider().create_messages(
+        model=model or MODEL, messages=messages, tools=tools,
+        max_tokens=max_tokens, system=system, **kw,
     )
 
 
 def chat_stream(messages, *, model=MODEL, tools=None, max_tokens=MAX_TOKENS,
-                on_text=None, on_event=None, **kw):
-    """流式调用 messages.create，返回聚合后的完整响应。
+                on_text=None, on_event=None, system=None, **kw):
+    """流式调用，返回聚合后的完整 Message。
 
-    on_text(chunk: str)：文本增量回调（每个 text delta 调用一次）。
-    on_event(event: dict)：事件回调，如 {"type":"tool_use","name":...,"input":...}、
-                          {"type":"step","stop_reason":...} 等，供 SSE/前端推送。
-    流式与 tool use 兼容：Anthropic 流式响应会在末尾聚合为完整 Message，
-    含 stop_reason 与 tool_use 块，调用方处理方式与非流式一致。
+    on_text(chunk: str)：文本增量回调。
+    on_event(event: dict)：事件回调（message_done 等），供 SSE/前端推送。
     """
-    on_text = on_text or (lambda c: None)
-    on_event = on_event or (lambda e: None)
-    with client.messages.stream(
-        model=model or MODEL,
-        max_tokens=max_tokens,
-        tools=tools,
-        messages=messages,
-        **kw,
-    ) as stream:
-        for chunk_text in stream.text_stream:
-            if chunk_text:
-                on_text(chunk_text)
-        resp = stream.get_final_message()
-    on_event({"type": "message_done", "stop_reason": resp.stop_reason})
-    return resp
+    return get_provider().stream_messages(
+        model=model or MODEL, messages=messages, tools=tools,
+        max_tokens=max_tokens, system=system,
+        on_text=on_text, on_event=on_event, **kw,
+    )

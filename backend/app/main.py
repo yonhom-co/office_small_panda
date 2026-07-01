@@ -45,19 +45,25 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/api/sessions")
-def create_session() -> dict:
+def create_session(user_id: str = "analyst1") -> dict:
+    # user_id 作为查询参数 ?user_id=admin1；默认 analyst1
+    from .hooks import default_bus
+    from .auth import get_user, tenant_scope, filtered_tools
+    from . import tools_registry
+    user = get_user(user_id) or get_user("analyst1")
     sid = uuid.uuid4().hex[:12]
     ckpt = CheckpointStore()
-    _sessions[sid] = {
-        "shared": {
-            "messages": [],
-            "max_steps": 20,
-            "checkpoint": ckpt,
-            "system": SYSTEM_PROMPT,
-        },
-        "ckpt": ckpt,
+    shared = {
+        "messages": [],
+        "max_steps": 20,
+        "checkpoint": ckpt,
+        "hooks": default_bus,
+        "system": SYSTEM_PROMPT,
     }
-    return {"session_id": sid}
+    tenant_scope(shared, user)
+    shared["tools"] = filtered_tools(user, tools_registry.default_registry)
+    _sessions[sid] = {"shared": shared, "ckpt": ckpt, "user": user}
+    return {"session_id": sid, "user": user.uid, "tenant": user.tenant, "role": user.role}
 
 
 def _get(sid: str) -> dict:

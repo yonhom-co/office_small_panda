@@ -11,5 +11,6 @@ from .tools import ppt_tools  # noqa: F401
 from .tools import plan_tools  # noqa: F401
 from .tools import skill_tools  # noqa: F401
 from .tools import kb_tools  # noqa: F401
+from .tools import mcp_tools  # noqa: F401
 
 __all__ = ["default_registry"]

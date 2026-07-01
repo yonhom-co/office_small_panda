@@ -62,6 +62,7 @@ class AgentNode(Node):
         shared.setdefault(K_TOOLS, default_registry)
         shared.setdefault(K_SYSTEM, SYSTEM_PROMPT)
         shared.setdefault("checkpoint", None)
+        shared.setdefault("hooks", None)          # 事件总线（阶段5 Hooks）
         shared.setdefault("stream", False)        # 是否流式
         shared.setdefault("on_text", None)        # 文本增量回调
         shared.setdefault("on_event", None)       # 事件回调（工具调用/完成）
@@ -144,13 +145,19 @@ class AgentNode(Node):
         if resp.stop_reason == "tool_use" and tool_uses:
             # 执行所有 tool_use 块，回灌 tool_result
             on_event = prep_res["on_event"]
+            bus = shared.get("hooks")  # 事件总线（阶段5 Hooks 引擎）
             tool_results = []
             for tu in tool_uses:
                 params = dict(tu.input) if tu.input else {}
                 if on_event:
                     on_event({"type": "tool_call", "name": tu.name, "input": params})
+                if bus:
+                    from .hooks import Event
+                    bus.emit(Event("tool_call", {"name": tu.name, "input": params}))
                 out = registry.call(tu.name, params, shared)
                 _log(shared, tu.name, {"input": params, "output": out})
+                if bus:
+                    bus.emit(Event("tool_result", {"name": tu.name, "output": out[:1000]}))
                 if on_event:
                     on_event({"type": "tool_result", "name": tu.name,
                               "output": out[:500]})
