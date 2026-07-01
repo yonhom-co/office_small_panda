@@ -17,7 +17,7 @@ from pocketflow import Node
 from .llm import chat
 from .tools import ToolRegistry, default_registry
 from .checkpoint import CheckpointStore
-from .context import maybe_compress, build_system
+from .context import maybe_compress
 
 # shared 约定键
 K_MESSAGES = "messages"          # LLM 对话历史（Anthropic messages 格式）
@@ -65,10 +65,26 @@ class AgentNode(Node):
         shared.setdefault("stream", False)        # 是否流式
         shared.setdefault("on_text", None)        # 文本增量回调
         shared.setdefault("on_event", None)       # 事件回调（工具调用/完成）
+
+        # @触发解析：最新用户消息含 @名称 时，载入 Skill / 注入知识库片段
+        system = shared[K_SYSTEM]
+        msgs = shared[K_MESSAGES]
+        if msgs:
+            last = msgs[-1]
+            last_text = last.get("content") if isinstance(last.get("content"), str) else ""
+            processed = shared.setdefault("at_processed", set())
+            if last_text and last_text not in processed and "@" in last_text:
+                from .at_trigger import resolve_mentions
+                injection = resolve_mentions(last_text, shared)
+                if injection:
+                    system = (system + "\n\n" + injection) if system else injection
+                    _log(shared, "at_trigger", {"text": last_text[:80]})
+                processed.add(last_text)
+
         return {
-            "messages": shared[K_MESSAGES],
+            "messages": msgs,
             "tools": shared[K_TOOLS],
-            "system": shared[K_SYSTEM],
+            "system": system,
             "model": shared.get(K_MODEL),
             "checkpoint": shared["checkpoint"],
             "stream": shared["stream"],

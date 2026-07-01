@@ -48,7 +48,8 @@ docker compose up -d
 - [x] 阶段 0：工程骨架 + 设计基线
 - [x] 阶段 1：Agent Harness 内核 + 数据分析工具链
 - [x] 阶段 2：Plan Mode + 子代理 + 上下文工程
-- [ ] 阶段 3：Skills + 知识库 + 文案创作
+- [x] 阶段 3：Skills + 知识库 + 文案创作
+- [ ] 阶段 4：多端前端
 - [ ] 阶段 4：多端前端
 - [ ] 阶段 5：MCP + Hooks + 私有化 + 一体机
 - [ ] 阶段 6：优化与行业场景
@@ -74,3 +75,14 @@ docker compose up -d
 - `backend/run_acceptance_stage2.py`：阶段2验收脚本
 
 验收：`.venv/bin/python backend/run_acceptance_stage2.py`（Plan→子代理协作→PPT）
+
+## 阶段 3 产物
+- `app/skills.py` + `app/tools/skill_tools.py`：Skills 按需加载（SkillRegistry + load_skill 工具）
+- `app/embedding.py`：本地 sentence-transformers embedding（默认 MiniLM-L6-v2，可切 bge-m3）
+- `app/knowledge_base.py` + `app/tools/kb_tools.py`：知识库 ingestion/query_kb（切分/embedding/检索/多库隔离）
+- `app/at_trigger.py`：@触发解析（Skill 载入 / 知识库检索注入），harness prep 自动触发
+- `backend/run_acceptance_stage3.py`：阶段3验收脚本
+
+验收：`.venv/bin/python backend/run_acceptance_stage3.py`（上传文档→@知识库写邮件）
+
+注：embedding 默认降级 MiniLM-L6-v2（bge-m3 无法联网下载）；向量存储本地 JSON（阶段5换 Qdrant）

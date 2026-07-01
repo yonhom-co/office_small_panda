@@ -21,6 +21,9 @@ dependencies = [
     "scikit-learn>=1.3",
     "python-pptx>=0.6.21",
     "weasyprint>=60.0",
+    "sentence-transformers>=2.2",
+    "pypdf>=4.0",
+    "python-docx>=1.1",
 ]
 
 [build-system]
