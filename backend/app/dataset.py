@@ -21,7 +21,11 @@ WORKDIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_file(path: str | Path, name: str | None = None) -> tuple[pd.DataFrame, str]:
-    """加载 CSV/Excel 为 DataFrame，返回 (df, display_name)。"""
+    """加载 CSV/Excel 为 DataFrame，返回 (df, display_name)。
+
+    性能（阶段6 步骤5）：大文件（> LARGE_FILE_ROWS 行）先采样前 N 行做元数据探查，
+    完整数据仍落 parquet 供沙箱按需读取，避免一次性撑爆内存。
+    """
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix in (".xlsx", ".xls"):

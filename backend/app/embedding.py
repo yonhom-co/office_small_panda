@@ -26,10 +26,15 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 @lru_cache(maxsize=1)
 def _get_model():
-    """懒加载 sentence-transformers 模型（单例）。"""
+    """懒加载 sentence-transformers 模型（单例）。强制离线，避免联网卡顿。"""
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
     from sentence_transformers import SentenceTransformer
     name_or_path = EMBED_MODEL_DIR or EMBED_MODEL_NAME
-    return SentenceTransformer(name_or_path, device=os.getenv("EMBED_DEVICE", "cpu"))
+    return SentenceTransformer(
+        name_or_path, device=os.getenv("EMBED_DEVICE", "cpu"),
+        model_kwargs={"local_files_only": True},
+    )
 
 
 def embed(texts: list[str]) -> list[list[float]]:

@@ -30,8 +30,37 @@ class Skill:
         return "\n".join(parts)
 
 
-# 内置 Skills 目录（Markdown 文件），可按需扩展
+# 内置 Skills 目录（Markdown 文件，frontmatter + 指令正文）
 SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / "skills"
+
+
+def _parse_skill_md(path: Path) -> Skill | None:
+    """解析 Skill Markdown 文件：frontmatter（name/description/triggers/tools/report_style）+ 正文指令。"""
+    import re
+    text = path.read_text(encoding="utf-8")
+    # frontmatter
+    m = re.match(r"^---\n(.*?)\n---\n?(.*)$", text, re.S)
+    if not m:
+        return None
+    fm_raw, body = m.group(1), m.group(2).strip()
+    fm: dict = {}
+    for line in fm_raw.splitlines():
+        if ":" in line:
+            k, v = line.split(":", 1)
+            v = v.strip()
+            if v.startswith("[") and v.endswith("]"):
+                v = [x.strip().strip("'\"") for x in v[1:-1].split(",") if x.strip()]
+            fm[k.strip()] = v
+    name = fm.get("name", path.stem)
+    tools_raw = fm.get("tools", [])
+    if isinstance(tools_raw, str):
+        tools_raw = [t.strip() for t in tools_raw.split(",") if t.strip()]
+    return Skill(
+        name=name,
+        description=fm.get("description", ""),
+        instructions=body or f"载入 Skill: {name}",
+        tools=list(tools_raw),
+    )
 
 
 class SkillRegistry:
@@ -42,6 +71,15 @@ class SkillRegistry:
 
     def register(self, skill: Skill) -> None:
         self._skills[skill.name] = skill
+
+    def load_from_dir(self, dir_path: Path) -> None:
+        """从目录加载所有 .md Skill 文件。"""
+        if not dir_path.exists():
+            return
+        for md in sorted(dir_path.glob("*.md")):
+            skill = _parse_skill_md(md)
+            if skill:
+                self.register(skill)
 
     def get(self, name: str) -> Skill | None:
         return self._skills.get(name)
@@ -59,9 +97,7 @@ class SkillRegistry:
 
 
 default_skills = SkillRegistry()
-
-
-# 注册一个示例 Skill，证明机制可用（行业包阶段6 填充）
+# 注册内置 writing Skill（代码定义）
 default_skills.register(Skill(
     name="writing",
     description="文案创作：邮件、海报、通用文案",
@@ -73,6 +109,13 @@ default_skills.register(Skill(
     ),
     tools=["query_kb", "todo"],
 ))
+# 从 skills/ 目录加载行业 Skill 包（教育/医疗/电商/采购/财务）
+default_skills.load_from_dir(SKILLS_DIR)
+
+
+def load_skill_prompt(name: str) -> str:
+    """供 load_skill 工具与 @触发 调用。"""
+    return default_skills.load(name)
 
 
 def load_skill_prompt(name: str) -> str:

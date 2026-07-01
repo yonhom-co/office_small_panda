@@ -152,9 +152,48 @@ def trace(sid: str) -> dict:
         "todos": shared.get("todos", []),
         "kb_used": shared.get("kb_used", []),
         "loaded_skills": shared.get("loaded_skills", []),
+        "token_stats": shared.get("token_stats", {}),
+        "compress_count": shared.get("compress_count", 0),
         "report_path": shared.get("report_path"),
         "report_pdf_path": shared.get("report_pdf_path"),
         "ppt_path": shared.get("ppt_path"),
+    }
+
+
+@app.get("/api/metrics")
+def metrics() -> dict:
+    """全局可观测性：会话/token/压缩/工具调用/hooks 审计（阶段6 步骤6）。"""
+    from .hooks import AUDIT_LOG
+    sessions = []
+    total_tokens = {"input": 0, "output": 0, "calls": 0}
+    total_compress = 0
+    tool_counts: dict[str, int] = {}
+    for sid, sess in _sessions.items():
+        shared = sess["shared"]
+        ts = shared.get("token_stats", {})
+        total_tokens["input"] += ts.get("input", 0)
+        total_tokens["output"] += ts.get("output", 0)
+        total_tokens["calls"] += ts.get("calls", 0)
+        total_compress += shared.get("compress_count", 0)
+        for t in shared.get("trace", []):
+            name = t.get("name", "")
+            if name not in ("end_turn", "max_steps_reached", "aborted",
+                            "context_compressed", "at_trigger"):
+                tool_counts[name] = tool_counts.get(name, 0) + 1
+        sessions.append({"sid": sid, "user": sess["user"].uid,
+                         "tenant": sess["user"].tenant, "role": sess["user"].role,
+                         "tokens": ts, "steps": shared.get("step", 0),
+                         "done": bool(shared.get("result"))})
+    audit_lines = 0
+    if AUDIT_LOG.exists():
+        audit_lines = sum(1 for _ in AUDIT_LOG.open(encoding="utf-8"))
+    return {
+        "sessions": len(_sessions),
+        "total_tokens": total_tokens,
+        "compress_count": total_compress,
+        "tool_calls": tool_counts,
+        "audit_log_lines": audit_lines,
+        "sessions_detail": sessions,
     }
 
 

@@ -51,7 +51,7 @@ docker compose up -d
 - [x] 阶段 3：Skills + 知识库 + 文案创作
 - [x] 阶段 4：多端前端（网页版✓ / 桌面端配置就绪阻塞 / 小程序推迟）
 - [x] 阶段 5：MCP + Hooks + 私有化 + 一体机
-- [ ] 阶段 6：优化与行业场景
+- [x] 阶段 6：优化与行业场景（行业 Skills/评测集/token 治理/metrics；已知欠账见下）
 
 ## 阶段 1 产物
 - `app/harness.py`：PocketFlow AgentNode 单节点自环 tool-use 循环（核心内核）
@@ -103,3 +103,21 @@ docker compose up -d
 - `deploy/docker-compose.prod.yml` + `deploy/{backend,frontend}.Dockerfile` + `PRIVATE_DEPLOY.md`：私有化部署 + 一体机规格
 
 验收：MCP 拉外部数据 + Hooks 审计归档 + 多租户 + 沙箱 + 报告生成协同（15步工具链）
+
+## 阶段 6 产物
+- `skills/`：五大行业 Skill 包（教育/医疗/电商/采购/财务，Markdown frontmatter，自动加载）
+- `app/skills.py`：从目录加载 Skill（_parse_skill_md）
+- `backend/run_eval.py`：Agent 评测集（子进程隔离用例，工具准确率/报告可用率/引用真实性/token 成本）
+- harness：token_stats 累计 + 精度规范注入
+- `app/main.py`：/api/metrics 全局可观测性端点
+
+验收：行业 Skills 可载入；token 监控 + metrics 实测可用；评测 data_analysis 用例 0.75
+
+## 已知欠账（待后续处理）
+- **评测集 RAG 用例 embedding 子进程加载失败**：run_eval 子进程跑 rag_email 时
+  sentence-transformers 仍尝试联网加载 config（OSError: huggingface.co 不可达）。
+  手动子进程 + HF_HUB_OFFLINE=1 可成功，经 run_eval 子进程链路仍失败，根因待查
+  （疑 env 继承或 transformers 版本路径）。data_analysis 用例不受影响。
+- 性能优化（图表懒渲染、沙箱预热池、并发）待后续。
+- Tauri 桌面端构建被 cookie×time 依赖死锁阻塞（阶段4遗留）。
+- 沙箱强隔离需 Docker daemon 运行（阶段5降级子进程）。
