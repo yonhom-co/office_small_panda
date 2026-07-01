@@ -48,46 +48,81 @@ SUBAGENT_TYPES: dict[str, dict] = {
 }
 
 
-def dispatch(task: str, shared: dict, agent_type: str = "data_analyst",
-             max_steps: int = 10) -> str:
-    """委派一个子任务给隔离上下文的子代理，返回结论文本。
-
-    子代理拥有独立 shared 副本；datasets 只读继承；产出的 charts 路径回传主 shared。
-    """
+def _dispatch_isolated(task: str, datasets: dict, current_dataset: str | None,
+                       agent_type: str, max_steps: int) -> tuple[str, list, list]:
+    """在完全隔离的上下文跑一个子代理，返回 (结论, charts, trace_steps)。不碰主 shared。"""
     spec = SUBAGENT_TYPES.get(agent_type, SUBAGENT_TYPES["data_analyst"])
-
-    # 独立 shared 副本（隔离上下文）：继承 datasets 与 checkpoints 配置，清空对话历史
     sub_shared = {
         "messages": [{"role": "user", "content": task}],
-        "datasets": copy.deepcopy(shared.get("datasets", {})),
-        "current_dataset": shared.get("current_dataset"),
+        "datasets": copy.deepcopy(datasets),
+        "current_dataset": current_dataset,
         "todos": [],
         "trace": [],
         "step": 0,
         "max_steps": max_steps,
         "model": spec["model"],
         "system": build_system(spec["system"]),
-        # 工具子集：用一个受限 registry
         "tools": _restricted_registry(spec["tools"]),
     }
-
     flow = build_flow()
     flow.run(sub_shared)
-
-    # 收集子代理结论
     conclusion = sub_shared.get("result", "(子代理无输出)")
-    new_charts = sub_shared.get("charts", [])
-    if new_charts:
-        shared.setdefault("charts", []).extend(new_charts)
-        conclusion += f"\n[子代理生成图表 {len(new_charts)} 张]"
+    charts = list(sub_shared.get("charts", []))
+    if charts:
+        conclusion += f"\n[子代理生成图表 {len(charts)} 张]"
+    steps = [t["name"] for t in sub_shared.get("trace", [])]
+    return conclusion, charts, steps
 
-    # 子代理的 trace 摘要回传（供主代理追溯，但不灌入完整历史）
-    sub_steps = [t["name"] for t in sub_shared.get("trace", [])]
+
+def _merge_result(shared: dict, agent_type: str, task: str,
+                  conclusion: str, charts: list, steps: list) -> str:
+    """把子代理结果聚合回主 shared（串行调用，避免并发 race）。"""
+    if charts:
+        shared.setdefault("charts", []).extend(charts)
     shared.setdefault("subagent_log", []).append({
-        "type": agent_type, "task": task, "steps": sub_steps,
-        "charts": len(new_charts),
+        "type": agent_type, "task": task, "steps": steps, "charts": len(charts),
     })
     return conclusion
+
+
+def dispatch(task: str, shared: dict, agent_type: str = "data_analyst",
+             max_steps: int = 10) -> str:
+    """委派一个子任务给隔离上下文的子代理，返回结论文本。
+
+    子代理拥有独立 shared 副本；datasets 只读继承；产出的 charts 路径回传主 shared。
+    """
+    conclusion, charts, steps = _dispatch_isolated(
+        task, shared.get("datasets", {}), shared.get("current_dataset"),
+        agent_type, max_steps)
+    return _merge_result(shared, agent_type, task, conclusion, charts, steps)
+
+
+def dispatch_parallel(tasks: list[dict], shared: dict, max_steps: int = 10) -> list[str]:
+    """并行委派多个子任务（补齐阶段2 步骤3 并发）。
+
+    tasks: [{"task":..., "agent_type":...}, ...]
+    用线程池并行（chat 为同步阻塞，线程池足够）；各自隔离上下文，最后串行聚合。
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    datasets = shared.get("datasets", {})
+    current_dataset = shared.get("current_dataset")
+
+    def _run(t):
+        return _dispatch_isolated(t["task"], datasets, current_dataset,
+                                  t.get("agent_type", "data_analyst"), max_steps)
+
+    results: list[tuple[str, list, list]] = []
+    with ThreadPoolExecutor(max_workers=min(4, len(tasks))) as ex:
+        for conclusion, charts, steps in ex.map(_run, tasks):
+            results.append((conclusion, charts, steps))
+
+    # 串行聚合（避免并发写主 shared）
+    merged = []
+    for (task_spec, (conclusion, charts, steps)) in zip(tasks, results):
+        merged.append(_merge_result(shared, task_spec.get("agent_type", "data_analyst"),
+                                    task_spec["task"], conclusion, charts, steps))
+    return merged
 
 
 def _restricted_registry(allowed_names: set[str]):

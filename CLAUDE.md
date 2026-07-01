@@ -64,9 +64,12 @@ docker compose up -d
 
 ## 阶段 2 产物
 - `app/plan.py` + `app/plan_mode.py`：Plan Mode 人机共决策（出计划→审批→执行）
-- `app/subagent.py` + `app/tools/subagent_tools.py`：子代理委派（隔离上下文，只回传结论）
+- `app/tools/plan_tools.py`：plan 工具化（Agent 可在循环中产出/更新计划）
+- `app/subagent.py` + `app/tools/subagent_tools.py`：子代理委派（隔离上下文，只回传结论）+ 并发调度（dispatch_parallel）
 - `app/context.py`：上下文工程（分层系统提示 + 长对话压缩 + 项目记忆）
 - `app/checkpoint.py`：shared 快照 + 过程追溯（自建 checkpointing）
+- `app/replan.py`：Replan + 分支重跑（接入 checkpoint.load）
+- `app/harness.py`：abort/resume 运行中中断与恢复
 - `app/tools/ppt_tools.py`：gen_ppt（python-pptx 生成 PPT）
 - `backend/run_acceptance_stage2.py`：阶段2验收脚本
 

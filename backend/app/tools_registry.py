@@ -8,5 +8,6 @@ from .tools import todo_tools  # noqa: F401
 from .tools import report_tools  # noqa: F401
 from .tools import subagent_tools  # noqa: F401
 from .tools import ppt_tools  # noqa: F401
+from .tools import plan_tools  # noqa: F401
 
 __all__ = ["default_registry"]

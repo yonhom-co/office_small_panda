@@ -92,6 +92,14 @@ class AgentNode(Node):
         registry: ToolRegistry = prep_res["tools"]
         ckpt: CheckpointStore | None = prep_res["checkpoint"]
 
+        # 运行中中断：每步检查 abort 标志（可由外部/SSE 设置）
+        if shared.get("abort"):
+            shared["aborted"] = True
+            shared["result"] = "[运行中被中断，可修改后恢复]"
+            _log(shared, "aborted", {"step": shared[K_STEP]})
+            _snapshot(ckpt, shared, action="aborted", note="用户中断")
+            return "aborted"  # Flow 遇未知 action 会退出，shared 完整保留
+
         # 上下文压缩：超阈值时压缩早期历史，防膨胀
         shared[K_MESSAGES], compressed = maybe_compress(shared[K_MESSAGES])
         if compressed:
@@ -167,3 +175,21 @@ def build_flow():
     agent = AgentNode(max_retries=2, wait=1)
     agent - "continue" >> agent  # 自环
     return Flow(start=agent)
+
+
+def abort(shared: dict) -> None:
+    """请求运行中中断（由外部/SSE 调用）。下一次循环步检查到即暂停。"""
+    shared["abort"] = True
+
+
+def resume(shared: dict) -> None:
+    """从中断处恢复执行：清掉 abort 标志，重新跑 flow。
+
+    PocketFlow 无内部不可恢复状态，shared 完整保留，故可直接续跑。
+    返回前会把用户在中断期间的修改（如追加的指示）纳入上下文。
+    """
+    shared.pop("abort", None)
+    shared.pop("aborted", None)
+    flow = build_flow()
+    flow.run(shared)
+
