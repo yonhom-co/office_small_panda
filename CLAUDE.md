@@ -49,8 +49,7 @@ docker compose up -d
 - [x] 阶段 1：Agent Harness 内核 + 数据分析工具链
 - [x] 阶段 2：Plan Mode + 子代理 + 上下文工程
 - [x] 阶段 3：Skills + 知识库 + 文案创作
-- [ ] 阶段 4：多端前端
-- [ ] 阶段 4：多端前端
+- [x] 阶段 4：多端前端（网页版✓ / 桌面端配置就绪阻塞 / 小程序推迟）
 - [ ] 阶段 5：MCP + Hooks + 私有化 + 一体机
 - [ ] 阶段 6：优化与行业场景
 
@@ -86,3 +85,11 @@ docker compose up -d
 验收：`.venv/bin/python backend/run_acceptance_stage3.py`（上传文档→@知识库写邮件）
 
 注：embedding 默认降级 MiniLM-L6-v2（bge-m3 无法联网下载）；向量存储本地 JSON（阶段5换 Qdrant）
+
+## 阶段 4 产物
+- `backend/app/main.py`：FastAPI 服务层（会话/上传/SSE 流式/追溯/产物下载）
+- `frontend/`：Vite+React+TS+Tailwind 网页版工作台（对话/上传/流式/追溯/产物）
+- `desktop/src-tauri/`：Tauri 桌面端配置（配置就绪，构建被 cookie×time 依赖死锁阻塞，见 desktop/README.md）
+
+启动：`uvicorn app.main:app --port 8000 --app-dir backend` + `cd frontend && pnpm dev`
+验收：经 API 联调实测，上传数据→SSE 流式对话→14步工具链→生成 HTML 报告，全链路跑通

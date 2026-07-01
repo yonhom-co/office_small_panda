@@ -40,3 +40,8 @@ logs/
 # Docker 本地数据卷
 deploy/data/
 
+# Rust / Tauri 构建产物
+desktop/src-tauri/target/
+desktop/src-tauri/Cargo.lock
+desktop/src-tauri/gen/
+
